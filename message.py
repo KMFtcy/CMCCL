@@ -6,6 +6,7 @@ class MessageType(Enum):
     DATA = "DATA"
     CONTROL = "CONTROL"
     BROADCAST = "BROADCAST"
+    REDUCE = "REDUCE"
 
 @dataclass
 class Message:

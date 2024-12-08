@@ -3,104 +3,106 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import simpy
+from collective.ps_allreduce import UnicastPSAllReduce, BroadcastPSAllReduce
+from topos.star_with_broadcast import create_star_network_with_broadcast
 import matplotlib.pyplot as plt
-from message import Message, MessageType
-from node import Node, SwitchNode, EndNode
-from topos.star import create_star_network
-from collective.ps_allreduce import BroadcastPSAllReduce, UnicastPSAllReduce
+import time
 
-def run_test(num_nodes: int, use_broadcast: bool, data_size: int = 1024*1024):
-    """Run a single PS-AllReduce test"""
+def run_ps_allreduce_test(num_nodes: int, data_size: int, use_broadcast: bool = False):
+    """Run a PS-AllReduce test with specified parameters"""
+    # Create environment and network
     env = simpy.Environment()
-    done_event = env.event()  # Add completion event
+    network = create_star_network_with_broadcast(num_nodes, env)
     
-    # Create network
-    network = create_star_network(
-        env=env,
-        num_nodes=num_nodes + 1,
-        bandwidth=100,
-        latency=5,
-        processing_delay=0.1
-    )
+    # Define workers and server
+    server_id = 0
+    workers = list(range(1, num_nodes))  # All nodes except server
     
-    # Start node processes
-    for node in network.nodes.values():
-        env.process(node.receive())
+    # Create PS-AllReduce instance
+    ps_allreduce = BroadcastPSAllReduce(env, network, workers, server_id, data_size) if use_broadcast \
+        else UnicastPSAllReduce(env, network, workers, server_id, data_size)
     
-    # Create and run PS-AllReduce
-    ps_class = BroadcastPSAllReduce if use_broadcast else UnicastPSAllReduce
-    ps_allreduce = ps_class(
-        env=env,
-        network=network,
-        ps_node_id=0,
-        data_size=data_size
-    )
-    
-    # Run simulation
+    # Start time
     start_time = env.now
     
-    def ps_process():
-        yield from ps_allreduce.run()
-        done_event.succeed()  # Signal completion
-        
-    env.process(ps_process())
-    env.run(until=done_event)  # Run until done_event is triggered
-    end_time = env.now
+    # Create processes for each worker
+    for worker_id in workers:
+        env.process(ps_allreduce.reduce(worker_id))
     
-    return end_time - start_time, network.nodes  # Return nodes for statistics
+    # Run simulation
+    env.run()
+    
+    # Return total time
+    return env.now - start_time
 
-def main():
-    node_counts = [4, 8, 16, 32]
-    results = {'broadcast': [], 'unicast': []}
+def compare_methods():
+    """Compare unicast and broadcast methods with different parameters"""
+    # Test parameters
+    node_counts = [5, 9, 17, 33]  # 4+1, 8+1, 16+1, 32+1 nodes
+    data_sizes = [1e6, 10e6, 100e6]  # 1MB, 10MB, 100MB
+    
+    results = {
+        'unicast': {},
+        'broadcast': {}
+    }
     
     # Run tests
-    for num_nodes in node_counts:
-        print(f"\nTesting with {num_nodes} nodes:")
+    for data_size in data_sizes:
+        results['unicast'][data_size] = []
+        results['broadcast'][data_size] = []
         
-        # Test broadcast version
-        print("\nBroadcast version:")
-        time_broadcast, nodes = run_test(num_nodes, True)
-        results['broadcast'].append(time_broadcast)
-        
-        # Print message counts for broadcast
-        print("\nBroadcast message counts:")
-        for node in nodes.values():
-            node_type = "PS" if node.node_id == 0 else "Worker"
-            print(f"{node_type} {node.node_id} received {node.messages_received} messages")
-        
-        # Test unicast version
-        print("\nUnicast version:")
-        time_unicast, nodes = run_test(num_nodes, False)
-        results['unicast'].append(time_unicast)
-        
-        # Print message counts for unicast
-        print("\nUnicast message counts:")
-        for node in nodes.values():
-            node_type = "PS" if node.node_id == 0 else "Worker"
-            print(f"{node_type} {node.node_id} received {node.messages_received} messages")
+        for num_nodes in node_counts:
+            print(f"\nTesting with {num_nodes} nodes and {data_size/1e6}MB data size")
+            
+            # Test unicast
+            print("Testing unicast method...")
+            time_unicast = run_ps_allreduce_test(num_nodes, int(data_size), use_broadcast=False)
+            results['unicast'][data_size].append(time_unicast)
+            
+            # Test broadcast
+            print("Testing broadcast method...")
+            time_broadcast = run_ps_allreduce_test(num_nodes, int(data_size), use_broadcast=True)
+            results['broadcast'][data_size].append(time_broadcast)
     
     # Plot results
-    plt.figure(figsize=(10, 5))
-    plt.plot(node_counts, results['broadcast'], 'b-o', label='Broadcast')
-    plt.plot(node_counts, results['unicast'], 'r-o', label='Unicast')
-    plt.xscale('log', base=2)
-    plt.xticks(node_counts, node_counts)
-    plt.xlabel('Number of Nodes (log2 scale)')
-    plt.ylabel('Total Time (time units)')
-    plt.title('PS-AllReduce Performance Comparison')
-    plt.grid(True, alpha=0.3)
-    plt.legend()
+    plot_results(node_counts, data_sizes, results)
+
+def plot_results(node_counts, data_sizes, results):
+    """Plot the comparison results"""
+    plt.figure(figsize=(15, 5))
     
-    # Save results
+    for idx, data_size in enumerate(data_sizes, 1):
+        plt.subplot(1, 3, idx)
+        
+        plt.plot(node_counts, results['unicast'][data_size], 'b-o', label='Unicast')
+        plt.plot(node_counts, results['broadcast'][data_size], 'r-o', label='Broadcast')
+        
+        plt.title(f'Data Size: {data_size/1e6}MB')
+        plt.xlabel('Number of Nodes')
+        plt.ylabel('Simulation Time')
+        plt.grid(True)
+        plt.legend()
+    
+    plt.tight_layout()
+    
+    # Create logs directory if it doesn't exist
     os.makedirs('logs', exist_ok=True)
-    plt.savefig('logs/ps_allreduce_comparison.png', dpi=300, bbox_inches='tight')
+    plt.savefig('logs/ps_allreduce_comparison.png')
     plt.close()
+
+    # Also save numerical results
+    print("\nNumerical Results:")
+    print("\nUnicast method:")
+    for data_size in data_sizes:
+        print(f"\nData size: {data_size/1e6}MB")
+        for nodes, time in zip(node_counts, results['unicast'][data_size]):
+            print(f"Nodes: {nodes}, Time: {time}")
     
-    # Save numerical results
-    with open('logs/ps_allreduce_comparison.txt', 'w') as f:
-        f.write("Nodes\tBroadcast\tUnicast\n")
-        for i, n in enumerate(node_counts):
-            f.write(f"{n}\t{results['broadcast'][i]:.2f}\t{results['unicast'][i]:.2f}\n")
+    print("\nBroadcast method:")
+    for data_size in data_sizes:
+        print(f"\nData size: {data_size/1e6}MB")
+        for nodes, time in zip(node_counts, results['broadcast'][data_size]):
+            print(f"Nodes: {nodes}, Time: {time}")
 
 if __name__ == "__main__":
-    main() 
+    compare_methods() 
