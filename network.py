@@ -47,7 +47,7 @@ def get_flow_by_src_dst(all_flows: Dict[int, Flow], src: int, dst: int) -> Optio
             return flow_id, flow
     return None
 
-def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, message: Message):
+def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, message: Message, is_broadcast: bool=False):
     """Send a message from source to destination.
 
     Args:
@@ -74,6 +74,10 @@ def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, me
         dst=dst_id,
         flow_id=flow_id,
     )
+
+    packet.is_broadcast = is_broadcast
+    if is_broadcast:
+        packet.last_hop = src_id
 
     # Activate SimPy process to send the packet
     env.process(_send_packet(env, packet, network.nodes[src_id]["device"]))
