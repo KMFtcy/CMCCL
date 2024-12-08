@@ -35,7 +35,9 @@ def generate_all_flows(
             size_dist=size_dist,
         )
         
-        all_flows[flow_id].path = list(nx.all_shortest_paths(G, src, dst))[0]
+        # all_flows[flow_id].path = list(nx.all_shortest_paths(G, src, dst))[0]
+        print(f"nodes count is {G.number_of_nodes()}, finding path from {src} to {dst}")
+        all_flows[flow_id].path = nx.shortest_path(G, src, dst)
         flow_id += 1
         
     return all_flows
