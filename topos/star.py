@@ -1,6 +1,7 @@
 import simpy
 from node import SwitchNode, EndNode
 from channel import Channel
+from network import Network
 
 def create_star_network(env: simpy.Environment, num_nodes: int, 
                        bandwidth: float = 100,    # 100Mbps
@@ -18,7 +19,7 @@ def create_star_network(env: simpy.Environment, num_nodes: int,
         processing_delay: Node processing delay in ms
         
     Returns:
-        list: List of nodes where nodes[0] is the switch and others are end nodes
+        Network: Network object
     """
     nodes = []
     
@@ -59,4 +60,5 @@ def create_star_network(env: simpy.Environment, num_nodes: int,
         switch.add_neighbor(i, node, channel_to_node)
         node.add_neighbor(0, switch, channel_to_switch)
         
-    return nodes 
+    # Return a Network object instead of just the nodes list
+    return Network(env, nodes) 
