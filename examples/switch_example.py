@@ -3,168 +3,120 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import simpy
-import matplotlib.pyplot as plt
 from message import Message, MessageType
-from node import Node, SwitchNode, EndNode
-from topos.star import create_star_network
+from topos.star_with_broadcast import create_star_network_with_broadcast
+from network import send
+import matplotlib.pyplot as plt
+import time
+import numpy as np
+from collections import defaultdict
 
-def unicast_process(env: simpy.Environment, node: Node, network, done_event):
-    """Process for point-to-point transmission test"""
-    env.process(node.receive())
-    
-    if node.node_id == 1:
-        yield env.timeout(1)
-        print("Node 1 starts unicast messages")
-        
-        for target_id in range(2, len(network.nodes)):
-            print(f"Time {env.now:.2f}: Node 1 sending to Node {target_id}")
-            yield from network.transmit(1, target_id, f"Unicast to Node {target_id}", MessageType.DATA)
-            print(f"Time {env.now:.2f}: Completed sending to Node {target_id}")
-        
-        print(f"Time {env.now:.2f}: Node 1 completed all unicast transmissions")
-        done_event.succeed()
-
-def broadcast_process(env: simpy.Environment, node: Node, network, done_event):
-    """Process for broadcast transmission test"""
-    env.process(node.receive())
-    
-    if node.node_id == 1:
-        yield env.timeout(1)
-        print("Node 1 starts broadcast message")
-        
-        print(f"Time {env.now:.2f}: Node 1 broadcasting to all nodes")
-        yield from network.transmit(1, 0, "Broadcast message", MessageType.BROADCAST)
-        print(f"Time {env.now:.2f}: Completed broadcasting")
-        
-        done_event.succeed()
-
-def run_test(num_nodes: int, is_broadcast: bool):
-    """Run test with specified number of nodes and transmission type"""
-    env = simpy.Environment()
-    done_event = env.event()
-    
-    network = create_star_network(
-        env=env,
-        num_nodes=num_nodes + 1,
-        bandwidth=100,
-        latency=5,
-        processing_delay=0.1
-    )
-    
+def unicast_broadcast(env: simpy.Environment, network, src_id: int, num_nodes: int):
+    """Broadcast by sending unicast messages to each node"""
     start_time = env.now
-    process_func = broadcast_process if is_broadcast else unicast_process
-    
-    for node in network.nodes.values():
-        env.process(process_func(env, node, network, done_event))
-    
-    env.run(until=done_event)
-    end_time = env.now
-    
-    total_time = end_time - start_time - 1
-    avg_time = total_time / (num_nodes - 2)
-    
-    # Print statistics
-    print(f"\nResults for {num_nodes} nodes ({'Broadcast' if is_broadcast else 'Unicast'}):")
-    print(f"Total time: {total_time:.2f} time units")
-    print(f"Average time per message: {avg_time:.2f} time units")
-    print("Message counts:")
-    for node in network.nodes.values():
-        node_type = "Switch" if isinstance(node, SwitchNode) else "Node"
-        print(f"{node_type} {node.node_id} received {node.messages_received} messages")
-    print("-" * 50)
-    
-    return total_time, avg_time
+    sent_size = 0
+    for dst_id in range(1, num_nodes):
+        if dst_id != src_id:
+            message = Message(
+                source_id=src_id,
+                target_id=dst_id,
+                data=f"Unicast broadcast from {src_id} to {dst_id}",
+                msg_type=MessageType.BROADCAST,
+                timestamp=env.now
+            )
+            send(env, network, src_id, dst_id, message)
+            sent_size += 1.5e6  # packet size
+            yield env.timeout(1)  # Wait a bit between sends
+    return env.now - start_time, sent_size
 
-def main():
-    print("Starting switch transmission tests...")
-    node_counts = [4, 8, 16, 32]
-    
-    # Store results
-    results = {
-        'unicast': {'total': [], 'avg': []},
-        'broadcast': {'total': [], 'avg': []}
+def direct_broadcast(env: simpy.Environment, network, src_id: int):
+    """Broadcast using the broadcast mechanism"""
+    start_time = env.now
+    message = Message(
+        source_id=src_id,
+        target_id=-1,
+        data=f"Direct broadcast from {src_id}",
+        msg_type=MessageType.BROADCAST,
+        timestamp=env.now
+    )
+    send(env, network, src_id, -1, message, is_broadcast=True)
+    yield env.timeout(1)
+    return env.now - start_time, 1.5e6  # Single packet size
+
+def run_test(num_nodes: int):
+    """Run test for a specific network size"""
+    env = simpy.Environment()
+    network = create_star_network_with_broadcast(num_nodes, env)
+    results = {}
+
+    # Test unicast broadcast
+    print(f"\nTesting unicast broadcast with {num_nodes} nodes:")
+    unicast_process = env.process(unicast_broadcast(env, network, src_id=2, num_nodes=num_nodes))
+    env.run(until=unicast_process)
+    sim_time, sent_size = unicast_process.value
+    results['unicast'] = {
+        'latency': sim_time,  # Use simulation time instead of real time
+        'bandwidth': sent_size / sim_time if sim_time > 0 else 0
     }
-    
-    # Run tests
-    for num_nodes in node_counts:
-        # Unicast test
-        total_time, avg_time = run_test(num_nodes, False)
-        results['unicast']['total'].append(total_time)
-        results['unicast']['avg'].append(avg_time)
-        
-        # Broadcast test
-        total_time, avg_time = run_test(num_nodes, True)
-        results['broadcast']['total'].append(total_time)
-        results['broadcast']['avg'].append(avg_time)
-    
-    # Create visualization
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
-    
-    # Plot total latencies
-    ax1.plot(node_counts, results['unicast']['total'], 'b-o', label='Unicast')
-    ax1.plot(node_counts, results['broadcast']['total'], 'r-o', label='Broadcast')
-    ax1.set_xscale('log', base=2)
-    ax1.set_xticks(node_counts)
-    ax1.set_xticklabels(node_counts)
-    ax1.set_xlabel('Number of Nodes (log2 scale)')
-    ax1.set_ylabel('Total Time (time units)')
-    ax1.set_title('Total Transmission Time')
-    ax1.grid(True, alpha=0.3)
-    ax1.legend()
-    
-    # Plot average latencies
-    ax2.plot(node_counts, results['unicast']['avg'], 'b-o', label='Unicast')
-    ax2.plot(node_counts, results['broadcast']['avg'], 'r-o', label='Broadcast')
-    ax2.set_xscale('log', base=2)
-    ax2.set_xticks(node_counts)
-    ax2.set_xticklabels(node_counts)
-    ax2.set_xlabel('Number of Nodes (log2 scale)')
-    ax2.set_ylabel('Time per Message (time units)')
-    ax2.set_title('Average Time per Message')
-    ax2.grid(True, alpha=0.3)
-    ax2.legend()
-    
-    # Create bar plots for comparison
-    width = 0.35
-    x = range(len(node_counts))
-    
-    # Total time comparison
-    ax3.bar([i - width/2 for i in x], results['unicast']['total'], width, label='Unicast')
-    ax3.bar([i + width/2 for i in x], results['broadcast']['total'], width, label='Broadcast')
-    ax3.set_xticks(x)
-    ax3.set_xticklabels(node_counts)
-    ax3.set_xlabel('Number of Nodes')
-    ax3.set_ylabel('Total Time (time units)')
-    ax3.set_title('Total Time Comparison')
-    ax3.legend()
-    
-    # Average time comparison
-    ax4.bar([i - width/2 for i in x], results['unicast']['avg'], width, label='Unicast')
-    ax4.bar([i + width/2 for i in x], results['broadcast']['avg'], width, label='Broadcast')
-    ax4.set_xticks(x)
-    ax4.set_xticklabels(node_counts)
-    ax4.set_xlabel('Number of Nodes')
-    ax4.set_ylabel('Time per Message (time units)')
-    ax4.set_title('Average Time Comparison')
-    ax4.legend()
-    
-    plt.tight_layout()
-    
+
+    # Reset environment for direct broadcast test
+    env = simpy.Environment()
+    network = create_star_network_with_broadcast(num_nodes, env)
+
+    # Test direct broadcast
+    print(f"Testing direct broadcast with {num_nodes} nodes:")
+    broadcast_process = env.process(direct_broadcast(env, network, src_id=2))
+    env.run(until=broadcast_process)
+    sim_time, sent_size = broadcast_process.value
+    results['broadcast'] = {
+        'latency': sim_time,  # Use simulation time instead of real time
+        'bandwidth': sent_size / sim_time if sim_time > 0 else 0
+    }
+
+    return results
+
+def plot_results(node_counts, results):
+    """Plot and save the results"""
     # Create logs directory if it doesn't exist
     os.makedirs('logs', exist_ok=True)
+
+    # Prepare data for plotting
+    metrics = {
+        'latency': {'title': 'Simulation Latency vs Network Size', 'ylabel': 'Latency (simulation time)'},
+        'bandwidth': {'title': 'Bandwidth vs Network Size', 'ylabel': 'Bandwidth (bytes/simulation time)'}
+    }
+
+    for metric, info in metrics.items():
+        plt.figure(figsize=(10, 6))
+        
+        # Plot data for both methods
+        unicast_data = [results[n]['unicast'][metric] for n in node_counts]
+        broadcast_data = [results[n]['broadcast'][metric] for n in node_counts]
+        
+        plt.plot(node_counts, unicast_data, 'b-o', label='Unicast Broadcast')
+        plt.plot(node_counts, broadcast_data, 'r-o', label='Direct Broadcast')
+        
+        plt.title(info['title'])
+        plt.xlabel('Number of Nodes')
+        plt.ylabel(info['ylabel'])
+        plt.grid(True)
+        plt.legend()
+        
+        # Save the plot
+        plt.savefig(f'logs/{metric}_comparison.png')
+        plt.close()
+
+def main():
+    # Test different network sizes
+    node_counts = [5, 9, 17, 33]  # 4+1, 8+1, 16+1, 32+1 nodes
+    all_results = {}
     
-    # Save results
-    plt.savefig('logs/switch_test_results.png', dpi=300, bbox_inches='tight')
-    plt.close()
-    
-    # Save numerical results
-    with open('logs/switch_test_results.txt', 'w') as f:
-        f.write("Nodes\tUnicast_Total\tUnicast_Avg\tBroadcast_Total\tBroadcast_Avg\n")
-        for i, n in enumerate(node_counts):
-            f.write(f"{n}\t{results['unicast']['total'][i]:.2f}\t"
-                   f"{results['unicast']['avg'][i]:.2f}\t"
-                   f"{results['broadcast']['total'][i]:.2f}\t"
-                   f"{results['broadcast']['avg'][i]:.2f}\n")
+    for num_nodes in node_counts:
+        print(f"\nTesting network with {num_nodes} nodes")
+        all_results[num_nodes] = run_test(num_nodes)
+
+    # Plot and save results
+    plot_results(node_counts, all_results)
 
 if __name__ == "__main__":
     main() 
