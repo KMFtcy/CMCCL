@@ -47,7 +47,7 @@ def get_flow_by_src_dst(all_flows: Dict[int, Flow], src: int, dst: int) -> Optio
             return flow_id, flow
     return None
 
-def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, message: Message, is_broadcast: bool=False):
+def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, message: Message, data_size: int=1.5e6, is_broadcast: bool=False):
     """Send a message from source to destination.
 
     Args:
@@ -68,7 +68,7 @@ def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, me
     # Create a packet
     packet = Packet(
         env.now,
-        size=1.5e6,  # Assuming message has a size attribute
+        size=data_size,  # Assuming message has a size attribute
         packet_id=network.nodes[src_id]["send_packet_num"],  # Assuming message has an id attribute
         src=src_id,
         dst=dst_id,
