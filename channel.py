@@ -29,6 +29,7 @@ class Channel:
             
             # Simulate packet loss
             if random.random() < self.packet_loss_rate:
+                print("packet loss")
                 return None
             
             # Deliver message to target node
