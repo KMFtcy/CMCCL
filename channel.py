@@ -28,8 +28,8 @@ class Channel:
             yield self.env.timeout(transmission_time)
             
             # Simulate packet loss
-            if random.random() < self.packet_loss_rate:
-                return None
+            # if random.random() < self.packet_loss_rate:
+            #     return None
             
             # Deliver message to target node
             target_node.received_messages.append(message)
