@@ -5,10 +5,10 @@ from message import Message
 
 class Channel:
     def __init__(self, env: simpy.Environment, bandwidth: float, 
-                 latency: float, packet_loss_rate: float):
+                 latency_dist: float, packet_loss_rate: float):
         self.env = env
         self.bandwidth = bandwidth  # Mbps
-        self.latency = latency      # ms
+        self.latency_list = latency_dist      # ms
         self.packet_loss_rate = packet_loss_rate
         self.busy = simpy.Resource(env, capacity=1)
         
@@ -22,7 +22,7 @@ class Channel:
             transmission_time = message_size / (self.bandwidth * 1024 * 1024 / 8)
             
             # Simulate propagation delay
-            yield self.env.timeout(self.latency / 1000.0)
+            yield self.env.timeout(self.latency_list() / 1000.0)
             
             # Simulate transmission delay
             yield self.env.timeout(transmission_time)
