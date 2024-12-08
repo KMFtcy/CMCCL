@@ -89,13 +89,6 @@ class SimpleNode(Node):
         self.messages_received += 1
         print(f"Time {self.env.now:.2f}: Node {self.node_id} received data from Node {message.source_id}: {message.data}")
         done = self.env.event()
-        # Simple echo response
-        if message.msg_type == MessageType.DATA:
-            self.env.process(self.send(
-                message.source_id,
-                f"Echo: {message.data}",
-                MessageType.CONTROL
-            ))
         done.succeed()
         return done
 
