@@ -6,27 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import simpy
 from message import Message, MessageType
 from channel import Channel
-from node import Node
-
-class RingNode(Node):
-    """Node implementation for ring topology"""
-    def __init__(self, env, node_id, initial_data, processing_delay, total_nodes):
-        super().__init__(env, node_id, initial_data, processing_delay)
-        self.total_nodes = total_nodes
-        self.messages_received = 0
-        
-    def handle_message(self, message: Message):
-        self.messages_received += 1
-        print(f"Time {self.env.now:.2f}: Node {self.node_id} received data from Node {message.source_id}: {message.data}")
-        
-        # Pass message to next node
-        next_node = (self.node_id + 1) % self.total_nodes
-        
-        # Add processing logic
-        new_data = f"Data from Node {self.node_id}_{self.messages_received}"
-        
-        # Send to next node
-        self.env.process(self.send(next_node, new_data, MessageType.DATA))
+from node import RingNode
 
 def create_ring_network(env: simpy.Environment, num_nodes: int):
     """Create ring network"""

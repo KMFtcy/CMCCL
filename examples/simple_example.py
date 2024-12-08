@@ -6,19 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import simpy
 from message import Message, MessageType
 from channel import Channel
-from node import Node
-
-class SimpleNode(Node):
-    """Simple node implementation for demonstration"""
-    def handle_message(self, message: Message):
-        print(f"Time {self.env.now:.2f}: Node {self.node_id} received data from Node {message.source_id}: {message.data}")
-        # Simple echo response
-        if message.msg_type == MessageType.DATA:
-            self.env.process(self.send(
-                message.source_id,
-                f"Echo: {message.data}",
-                MessageType.CONTROL
-            ))
+from node import SimpleNode
 
 def node_process(env: simpy.Environment, node: SimpleNode):
     """Main process for each node"""

@@ -5,6 +5,7 @@ from typing import Any
 class MessageType(Enum):
     DATA = "DATA"
     CONTROL = "CONTROL"
+    BROADCAST = "BROADCAST"
 
 @dataclass
 class Message:
