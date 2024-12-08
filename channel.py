@@ -5,7 +5,7 @@ from message import Message
 
 class Channel:
     def __init__(self, env: simpy.Environment, bandwidth: float, 
-                 latency_dist: float, packet_loss_rate: float):
+                 latency_dist: float, packet_loss_rate: float=0):
         self.env = env
         self.bandwidth = bandwidth  # Mbps
         self.latency_list = latency_dist      # ms
@@ -28,8 +28,8 @@ class Channel:
             yield self.env.timeout(transmission_time)
             
             # Simulate packet loss
-            # if random.random() < self.packet_loss_rate:
-            #     return None
+            if random.random() < self.packet_loss_rate:
+                return None
             
             # Deliver message to target node
             target_node.received_messages.append(message)

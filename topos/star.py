@@ -2,11 +2,12 @@ import simpy
 from node import SwitchNode, EndNode
 from channel import Channel
 from network import Network
-
+import random
+from functools import partial
 def create_star_network(env: simpy.Environment, num_nodes: int, 
                        bandwidth: float = 100,    # 100Mbps
                        latency: float = 5,        # 5ms
-                       packet_loss_rate: float = 0.05,
+                       packet_loss_rate: float = 0,
                        processing_delay: float = 0.1):
     """Create a star network with one switch in the center
     
@@ -46,13 +47,13 @@ def create_star_network(env: simpy.Environment, num_nodes: int,
         channel_to_node = Channel(
             env=env,
             bandwidth=bandwidth,
-            latency=latency,
+            latency_dist=partial(random.gauss, 0.1, 0.02),
             packet_loss_rate=packet_loss_rate
         )
         channel_to_switch = Channel(
             env=env,
             bandwidth=bandwidth,
-            latency=latency,
+            latency_dist=partial(random.gauss, 0.1, 0.02),
             packet_loss_rate=packet_loss_rate
         )
         
