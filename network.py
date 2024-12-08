@@ -42,36 +42,18 @@ class Network:
         return None
         
     def transmit(self, source_id: int, target_id: int, data: any, msg_type: MessageType):
-        """Transmit a message from source to target through the network
-        
-        Args:
-            source_id: ID of the source node
-            target_id: ID of the target node
-            data: Data to be transmitted
-            msg_type: Type of the message
-            
-        Returns:
-            Generator for SimPy to process
-        """
-        # Find path from source to target
+        """Transmit a message from source to target through the network"""
         path = self.find_path(source_id, target_id)
         if not path:
             print(f"No path found from Node {source_id} to Node {target_id}")
             return
-            
-        # Create the initial message
-        message = Message(
-            source_id=source_id,
-            target_id=target_id,
-            data=data,
-            msg_type=msg_type,
-            timestamp=self.env.now
-        )
-        
+
         # Transmit message along the path
         for i in range(len(path) - 1):
             current_id = path[i]
             next_id = path[i + 1]
             
-            # Let current node send to next node
-            yield from self.nodes[current_id].send(next_id, data, msg_type) 
+            # Wait for send to complete
+            yield from self.nodes[current_id].send(next_id, data, msg_type)
+            # Wait a bit to ensure message is processed
+            yield self.env.timeout(self.nodes[next_id].processing_delay)

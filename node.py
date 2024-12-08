@@ -44,12 +44,19 @@ class Node:
                 message = self.received_messages.pop(0)
                 # Simulate processing delay
                 yield self.env.timeout(self.processing_delay)
-                self.handle_message(message)
+                # Handle message and wait for completion
+                done = self.handle_message(message)  # Remove yield here
+                if done:  # Add check for done event
+                    yield done
             yield self.env.timeout(0.001)
             
     def handle_message(self, message: Message):
-        # To be implemented by specific algorithm classes
-        pass
+        """Base message handling method"""
+        self.messages_received += 1
+        # Create an event to signal message handling completion
+        done = self.env.event()
+        done.succeed()
+        return done
 
 class SwitchNode(Node):
     """Switch node that can broadcast messages to all connected nodes"""
@@ -57,24 +64,31 @@ class SwitchNode(Node):
         self.messages_received += 1
         print(f"Time {self.env.now:.2f}: Switch {self.node_id} received {message.msg_type.value} from Node {message.source_id}: {message.data}")
         
+        done = self.env.event()
         if message.msg_type == MessageType.BROADCAST:
             # Broadcast to all neighbors except the source
             for neighbor_id in self.neighbors:
                 if neighbor_id != message.source_id:
                     new_data = f"Broadcast from Node {message.source_id}: {message.data}"
                     self.env.process(self.send(neighbor_id, new_data, MessageType.BROADCAST))
+        done.succeed()
+        return done
 
 class EndNode(Node):
     """End node that can send and receive broadcast messages"""
     def handle_message(self, message: Message):
         self.messages_received += 1
         print(f"Time {self.env.now:.2f}: Node {self.node_id} received {message.msg_type.value} from Node {message.source_id}: {message.data}")
+        done = self.env.event()
+        done.succeed()
+        return done
 
 class SimpleNode(Node):
     """Simple node implementation for demonstration"""
     def handle_message(self, message: Message):
         self.messages_received += 1
         print(f"Time {self.env.now:.2f}: Node {self.node_id} received data from Node {message.source_id}: {message.data}")
+        done = self.env.event()
         # Simple echo response
         if message.msg_type == MessageType.DATA:
             self.env.process(self.send(
@@ -82,6 +96,8 @@ class SimpleNode(Node):
                 f"Echo: {message.data}",
                 MessageType.CONTROL
             ))
+        done.succeed()
+        return done
 
 class RingNode(Node):
     """Node implementation for ring topology"""
@@ -93,6 +109,7 @@ class RingNode(Node):
         self.messages_received += 1
         print(f"Time {self.env.now:.2f}: Node {self.node_id} received data from Node {message.source_id}: {message.data}")
         
+        done = self.env.event()
         # Pass message to next node
         next_node = (self.node_id + 1) % self.total_nodes
         
@@ -101,3 +118,5 @@ class RingNode(Node):
         
         # Send to next node
         self.env.process(self.send(next_node, new_data, MessageType.DATA))
+        done.succeed()
+        return done
