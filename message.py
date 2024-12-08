@@ -14,6 +14,6 @@ class Message:
     data: Any
     msg_type: MessageType
     timestamp: float
-    
+
     def __str__(self):
         return f"Message(from={self.source_id} to={self.target_id} type={self.msg_type.value})" 

@@ -1,65 +1,65 @@
+from network import generate_all_flows
+from ns.switch.switch import SimplePacketSwitch
+from ns.packet.sink import PacketSink
+from ns.topos.utils import generate_fib
+import networkx as nx
 import simpy
-from node import SwitchNode, EndNode
-from channel import Channel
-from network import Network
-import random
-from functools import partial
-def create_star_network(env: simpy.Environment, num_nodes: int, 
-                       bandwidth: float = 100,    # 100Mbps
-                       latency: float = 5,        # 5ms
-                       packet_loss_rate: float = 0,
-                       processing_delay: float = 0.1):
+
+def create_star_network(num_nodes: int, env: simpy.Environment):
     """Create a star network with one switch in the center
     
     Args:
-        env: SimPy environment
         num_nodes: Total number of nodes (including switch)
-        bandwidth: Channel bandwidth in Mbps
-        latency: Channel latency in ms
-        packet_loss_rate: Probability of packet loss
-        processing_delay: Node processing delay in ms
+        env: SimPy environment
         
-    Returns:
+    Returns
         Network: Network object
     """
-    nodes = []
-    
-    # Create switch node (ID: 0)
-    switch = SwitchNode(
-        env=env,
-        node_id=0,
-        initial_data=0,
-        processing_delay=processing_delay
-    )
-    nodes.append(switch)
-    
-    # Create end nodes
+    G = nx.Graph()
+    # Create the central node
+    G.add_node(0, type="switch")  # Central node is a switch
+    # Create other nodes
     for i in range(1, num_nodes):
-        node = EndNode(
-            env=env,
-            node_id=i,
-            initial_data=0,
-            processing_delay=processing_delay
+        G.add_node(i, type="host")  # Other nodes are hosts
+        G.add_edge(0, i)  # Connect central node to other nodes
+    
+    hosts = set()
+    for node_id in G.nodes():
+        if G.nodes[node_id]["type"] == "host":
+            hosts.add(node_id)
+
+    all_flows = generate_all_flows(G, hosts)
+    generate_fib(G, all_flows)
+    
+    # Add device attribute
+    for node_id in G.nodes():
+        node = G.nodes[node_id]
+        node["device"] = SimplePacketSwitch(
+            env, nports=num_nodes-1, port_rate=1e9, buffer_size=None, element_id=f"{node_id}"
         )
-        nodes.append(node)
-        
-        # Create bidirectional channels between switch and node
-        channel_to_node = Channel(
-            env=env,
-            bandwidth=bandwidth,
-            latency_dist=partial(random.gauss, 0.1, 0.02),
-            packet_loss_rate=packet_loss_rate
-        )
-        channel_to_switch = Channel(
-            env=env,
-            bandwidth=bandwidth,
-            latency_dist=partial(random.gauss, 0.1, 0.02),
-            packet_loss_rate=packet_loss_rate
-        )
-        
-        # Connect switch and node
-        switch.add_neighbor(i, node, channel_to_node)
-        node.add_neighbor(0, switch, channel_to_switch)
-        
-    # Return a Network object instead of just the nodes list
-    return Network(env, nodes) 
+        node["device"].demux.fib = node["flow_to_port"]
+
+    # Connect each node's ports to the next hop
+    for node_id in G.nodes():
+        node = G.nodes[node_id]
+        for port_number, next_hop in node["port_to_nexthop"].items():
+            node["device"].ports[port_number].out = G.nodes[next_hop]["device"]
+
+    # Connect all flow destinations to a sink for statistics
+    for flow_id, flow in all_flows.items():
+        G.nodes[flow.dst]["device"].demux.ends[flow_id] = PacketSink(env, debug=True)
+
+    # record send packet num in node attributes
+    for node_id in G.nodes():
+        G.nodes[node_id]["send_packet_num"] = 0
+
+    # add all flows to the network
+    G.all_flows = all_flows
+    
+    # # Print all nodes information in the fib graph
+    # for node, data in G.nodes(data=True):
+    #     print(f"Node: {node}, Data: {data}")
+    # # Print device information of node 3
+    # print(G.nodes[3]["device"].demux.ends)
+
+    return G

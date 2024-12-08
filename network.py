@@ -1,59 +1,88 @@
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
 import simpy
-from node import Node
-from message import Message, MessageType
+from message import Message
+from ns.flow.flow import Flow
+from ns.packet.packet import Packet
 
-class Network:
-    """Network class that manages message transmission between nodes"""
-    def __init__(self, env: simpy.Environment, nodes: List[Node]):
-        self.env = env
-        self.nodes = {node.node_id: node for node in nodes}
-        
-    def find_path(self, source_id: int, target_id: int) -> Optional[List[int]]:
-        """Find a path from source to target using BFS
-        
-        Args:
-            source_id: ID of the source node
-            target_id: ID of the target node
-            
-        Returns:
-            List of node IDs representing the path, or None if no path exists
-        """
-        if source_id not in self.nodes or target_id not in self.nodes:
-            return None
-            
-        # Use BFS to find shortest path
-        queue = [(source_id, [source_id])]
-        visited = {source_id}
-        
-        while queue:
-            current_id, path = queue.pop(0)
-            current_node = self.nodes[current_id]
-            
-            # Check all neighbors
-            for neighbor_id in current_node.neighbors:
-                if neighbor_id == target_id:
-                    return path + [target_id]
-                    
-                if neighbor_id not in visited:
-                    visited.add(neighbor_id)
-                    queue.append((neighbor_id, path + [neighbor_id]))
-                    
-        return None
-        
-    def transmit(self, source_id: int, target_id: int, data: any, msg_type: MessageType):
-        """Transmit a message from source to target through the network"""
-        path = self.find_path(source_id, target_id)
-        if not path:
-            print(f"No path found from Node {source_id} to Node {target_id}")
-            return
+from itertools import product
+import networkx as nx
 
-        # Transmit message along the path
-        for i in range(len(path) - 1):
-            current_id = path[i]
-            next_id = path[i + 1]
+def generate_all_flows(
+    G,
+    hosts,
+    size=None,
+    start_time=None,
+    finish_time=None,
+    arrival_dist=None,
+    size_dist=None,
+):
+    all_flows = dict()
+    flow_id = 0
+    
+    # Generate all possible source-destination pairs
+    for src, dst in product(sorted(hosts), repeat=2):
+        if src == dst:
+            continue
             
-            # Wait for send to complete
-            yield from self.nodes[current_id].send(next_id, data, msg_type)
-            # Wait a bit to ensure message is processed
-            yield self.env.timeout(self.nodes[next_id].processing_delay)
+        all_flows[flow_id] = Flow(
+            flow_id,
+            src,
+            dst,
+            size=size,
+            start_time=start_time,
+            finish_time=finish_time,
+            arrival_dist=arrival_dist,
+            size_dist=size_dist,
+        )
+        
+        all_flows[flow_id].path = list(nx.all_shortest_paths(G, src, dst))[0]
+        flow_id += 1
+        
+    return all_flows
+
+def get_flow_by_src_dst(all_flows: Dict[int, Flow], src: int, dst: int) -> Optional[Tuple[int, Flow]]:
+    """Select a flow based on source and destination"""
+    for flow_id, flow in all_flows.items():
+        if flow.src == src and flow.dst == dst:
+            return flow_id, flow
+    return None
+
+def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, message: Message):
+    """Send a message from source to destination.
+
+    Args:
+        env: SimPy environment
+        src_id: Source node ID
+        dst_id: Destination node ID
+        message: The message to be sent
+        network: The entire network topology containing all flows
+    """
+    all_flows = network.all_flows  # Extract all_flows from the network topology
+    flow_info = get_flow_by_src_dst(all_flows, src_id, dst_id)
+    if flow_info is None:
+        print(f"No flow found from {src_id} to {dst_id}.")
+        return
+
+    flow_id, flow = flow_info
+
+    # Create a packet
+    packet = Packet(
+        env.now,
+        size=1.5e6,  # Assuming message has a size attribute
+        packet_id=network.nodes[src_id]["send_packet_num"],  # Assuming message has an id attribute
+        src=src_id,
+        dst=dst_id,
+        flow_id=flow_id,
+    )
+
+    # Activate SimPy process to send the packet
+    env.process(_send_packet(env, packet, network.nodes[src_id]["device"]))
+
+    # Increment the send packet num
+    network.nodes[src_id]["send_packet_num"] += 1
+
+def _send_packet(env: simpy.Environment, packet: Packet, device):
+    """Internal method to handle sending the packet."""
+    yield env.timeout(0)  # Simulate some processing time
+    device.put(packet)  # Assuming the device has an in_ports attribute
+    print(f"Packet {packet.packet_id} sent from {packet.src} to {packet.dst}.")
