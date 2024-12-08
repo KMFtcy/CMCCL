@@ -39,7 +39,7 @@ def direct_broadcast(env: simpy.Environment, network, src_id: int):
         msg_type=MessageType.BROADCAST,
         timestamp=env.now
     )
-    send(env, network, src_id, -1, message, is_broadcast=True)
+    send(env, network, src_id, len(network.nodes)-1, message, is_broadcast=True)
     yield env.timeout(1)
     return env.now - start_time, 1.5e6  # Single packet size
 
@@ -52,7 +52,7 @@ def run_test(num_nodes: int):
     # Test unicast broadcast
     print(f"\nTesting unicast broadcast with {num_nodes} nodes:")
     unicast_process = env.process(unicast_broadcast(env, network, src_id=2, num_nodes=num_nodes))
-    env.run(until=unicast_process)
+    env.run()
     sim_time, sent_size = unicast_process.value
     results['unicast'] = {
         'latency': sim_time,  # Use simulation time instead of real time
@@ -66,7 +66,7 @@ def run_test(num_nodes: int):
     # Test direct broadcast
     print(f"Testing direct broadcast with {num_nodes} nodes:")
     broadcast_process = env.process(direct_broadcast(env, network, src_id=2))
-    env.run(until=broadcast_process)
+    env.run()
     sim_time, sent_size = broadcast_process.value
     results['broadcast'] = {
         'latency': sim_time,  # Use simulation time instead of real time
