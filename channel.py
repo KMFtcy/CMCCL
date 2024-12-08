@@ -32,6 +32,6 @@ class Channel:
                 print("packet loss")
                 return None
             
-            # Deliver message to target node
+            # Add message to target node's message queue
             target_node.received_messages.append(message)
             return message

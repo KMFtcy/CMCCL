@@ -35,8 +35,8 @@ def main():
         nodes.append(node)
 
     # Create bidirectional communication channels and connect nodes
-    channel_0_to_1 = Channel(env, bandwidth=100, latency=10, packet_loss_rate=0.1)
-    channel_1_to_0 = Channel(env, bandwidth=100, latency=10, packet_loss_rate=0.1)
+    channel_0_to_1 = Channel(env, bandwidth=100, latency_dist=10)
+    channel_1_to_0 = Channel(env, bandwidth=100, latency_dist=10)
 
     # Add neighbor relationships with both node and channel information
     nodes[0].add_neighbor(1, nodes[1], channel_0_to_1)

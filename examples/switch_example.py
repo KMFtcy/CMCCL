@@ -48,7 +48,6 @@ def run_test(num_nodes: int, is_broadcast: bool):
         num_nodes=num_nodes + 1,
         bandwidth=100,
         latency=5,
-        packet_loss_rate=0.05,
         processing_delay=0.1
     )
     
