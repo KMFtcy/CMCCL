@@ -49,15 +49,17 @@ def get_flow_by_src_dst(all_flows: Dict[int, Flow], src: int, dst: int) -> Optio
             return flow_id, flow
     return None
 
-def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, message: Message, data_size: int=1.5e9, is_broadcast: bool=False, latency: float=10):
+def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, message: Message, data_size: int=1.5e9, is_broadcast: bool=False, latency: float=0.5):
     """Send a message from source to destination."""
-    all_flows = network.all_flows
-    flow_info = get_flow_by_src_dst(all_flows, src_id, dst_id)
-    if flow_info is None:
-        print(f"No flow found from {src_id} to {dst_id}.")
-        return
-
-    flow_id, flow = flow_info
+    if dst_id == -1:
+        flow_id = -1  # 广播包使用特殊flow_id
+    else:
+        all_flows = network.all_flows
+        flow_info = get_flow_by_src_dst(all_flows, src_id, dst_id)
+        if flow_info is None:
+            print(f"No flow found from {src_id} to {dst_id}.")
+            return
+        flow_id, flow = flow_info
 
     # Create a packet
     packet = Packet(
@@ -78,7 +80,6 @@ def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, me
 
     # Return the process so caller can wait for it
     return env.process(_send_packet(env, packet, network.nodes[src_id]["device"], latency))
-
 def _send_packet(env: simpy.Environment, packet: Packet, device, latency: float=10):
     """Internal method to handle sending the packet."""
     yield env.timeout(latency)  # latency for every message
