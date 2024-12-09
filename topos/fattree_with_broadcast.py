@@ -5,7 +5,7 @@ from ns.packet.sink import PacketSink
 from ns.topos.utils import generate_fib
 from network import generate_all_flows
 
-def create_fattree_network_with_broadcast(k: int, env: simpy.Environment):
+def create_fattree_network_with_broadcast(k: int, env: simpy.Environment, debug: bool=False):
     """Create a k-ary FatTree network with broadcast switches
     
     Args:
@@ -92,7 +92,7 @@ def create_fattree_network_with_broadcast(k: int, env: simpy.Environment):
 
     # Connect flow destinations to sinks
     for flow_id, flow in all_flows.items():
-        G.nodes[flow.dst]["device"].demux.ends[flow_id] = PacketSink(env)
+        G.nodes[flow.dst]["device"].demux.ends[flow_id] = PacketSink(env, debug=debug)
 
     # Record send packet num in node attributes
     for node_id in G.nodes():
