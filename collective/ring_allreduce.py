@@ -30,12 +30,8 @@ class RingAllReduce:
     def reduce(self):
         """Perform Ring AllReduce operation"""
         # Phase 1: Scatter-reduce
-        scatter_reduce_start = self.env.now
-        step_times = []
-
         for step in range(self.n_workers - 1):
             step_start = self.env.now
-            print(f"Step {step} starting at {step_start}")
             # Each worker sends to its next neighbor
             send_processes = []
             for worker_id in self.workers:
@@ -51,34 +47,11 @@ class RingAllReduce:
                 send_proc = send(self.env, self.network, worker_id, send_dst, message, data_size=self.chunk_size)
                 send_processes.append(send_proc)
 
-            # Wait for all sends to complete
-            for proc in send_processes:
-                yield proc
-
-            # Last worker triggers the event for this step
-            if worker_id == self.workers[-1]:
-                self.scatter_reduce_events[step].succeed()
-            # Wait for step completion
-            yield self.scatter_reduce_events[step]
-            
-            step_end = self.env.now
-            step_time = step_end - step_start
-            print(f"Step {step} ending at {step_end}")
-            step_times.append((f"Scatter-Reduce Step {step}", step_time))
-
-        scatter_reduce_phase_time = self.env.now - scatter_reduce_start
-        print("\nRing AllReduce Scatter-Reduce Phase Times:")
-        for step_name, time in step_times:
-            print(f"{step_name}: {time}")
-        print(f"Total Scatter-Reduce Phase Time: {scatter_reduce_phase_time}")
+            yield self.env.all_of(send_processes)
 
         # Phase 2: Allgather
-        allgather_start = self.env.now
-        step_times = []
-
         for step in range(self.n_workers - 1):
             step_start = self.env.now
-            print(f"Allgather Step {step} starting at {step_start}")
             # Each worker sends to its next neighbor
             send_processes = []
             for worker_id in self.workers:
@@ -94,27 +67,8 @@ class RingAllReduce:
                 send_proc = send(self.env, self.network, worker_id, send_dst, message, data_size=self.chunk_size)
                 send_processes.append(send_proc)
 
-            # Wait for all sends to complete
-            for proc in send_processes:
-                yield proc
+            yield self.env.all_of(send_processes)
 
-            # Last worker triggers the event for this step
-            if worker_id == self.workers[-1]:
-                self.allgather_events[step].succeed()
-            # Wait for step completion
-            yield self.allgather_events[step]
-            
-            step_end = self.env.now
-            step_time = step_end - step_start
-            print(f"Allgather Step {step} ending at {step_end}")
-            step_times.append((f"Allgather Step {step}", step_time))
-
-        allgather_phase_time = self.env.now - allgather_start
-        print("\nRing AllReduce Allgather Phase Times:")
-        for step_name, time in step_times:
-            print(f"{step_name}: {time}")
-        print(f"Total Allgather Phase Time: {allgather_phase_time}")
-        print(f"Total AllReduce Time: {allgather_phase_time + scatter_reduce_phase_time}\n")
 
 class HierarchicalRingAllReduce(RingAllReduce):
     """Hierarchical Ring AllReduce implementation for FatTree topology"""
