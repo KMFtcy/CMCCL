@@ -2,88 +2,83 @@ import simpy
 from message import Message, MessageType
 from network import send
 import networkx as nx
-from typing import List, Dict
+from typing import List
 
 class PSAllReduce:
-    """Base class for Parameter Server AllReduce implementations"""
-    def __init__(self, env: simpy.Environment, network: nx.Graph, workers: List[int], server_id: int, data_size: int = 1.5e6):
+    """Parameter Server AllReduce implementation"""
+    def __init__(self, env: simpy.Environment, network: nx.Graph, workers: List[str], data_size: int = 1.5e9):
         self.env = env
         self.network = network
-        self.workers = workers
-        self.server_id = server_id
+        self.workers = sorted(workers)  # 所有worker节点
+        self.n_workers = len(workers)
         self.data_size = data_size
-        self.received_count = 0  # Count of received messages
-
-    def reduce(self, worker_id: int, data_size: int = None):
-        """Should be implemented by subclasses"""
-        raise NotImplementedError
-
-class UnicastPSAllReduce(PSAllReduce):
-    """Parameter Server AllReduce using unicast messages"""
-    def reduce(self, worker_id: int, data_size: int = None):
-        """Perform reduce operation using unicast messages"""
-        # Use provided data_size or default to self.data_size
-        data_size = data_size if data_size is not None else self.data_size
+        self.ps_node = min(self.workers)  # 使用第一个worker作为参数服务器
         
-        # Phase 1: Workers send values to server
-        message = Message(
-            source_id=worker_id,
-            target_id=self.server_id,
-            data="reduce",
-            msg_type=MessageType.REDUCE,
-            timestamp=self.env.now
-        )
-        send(self.env, self.network, worker_id, self.server_id, message, data_size=data_size)
-        yield self.env.timeout(0)  # Simulate computation time
-
-        # Server aggregates values
-        self.received_count += 1
-        
-        # Wait for all workers to send their values
-        if self.received_count == len(self.workers):
-            # Phase 2: Server broadcasts result back to workers
-            for w_id in self.workers:
+    def reduce(self):
+        """Perform Parameter Server AllReduce operation"""
+        # Phase 1: Workers send to PS
+        send_processes = []
+        for worker in self.workers:
+            if worker != self.ps_node:  # PS节点不需要发送给自己
                 message = Message(
-                    source_id=self.server_id,
-                    target_id=w_id,
-                    data="result",
+                    source_id=worker,
+                    target_id=self.ps_node,
+                    data=f"reduce_from_{worker}",
+                    msg_type=MessageType.REDUCE,
+                    timestamp=self.env.now
+                )
+                send_proc = send(self.env, self.network, worker, self.ps_node, message, data_size=self.data_size)
+                send_processes.append(send_proc)
+        
+        # 等待所有worker发送完成
+        if send_processes:
+            yield self.env.all_of(send_processes)
+            
+        # Phase 2: PS broadcasts result to all workers
+        broadcast_processes = []
+        for worker in self.workers:
+            if worker != self.ps_node:  # PS节点不需要发送给自己
+                message = Message(
+                    source_id=self.ps_node,
+                    target_id=worker,
+                    data=f"broadcast_to_{worker}",
                     msg_type=MessageType.BROADCAST,
                     timestamp=self.env.now
                 )
-                send(self.env, self.network, self.server_id, w_id, message, data_size=data_size)
-                yield self.env.timeout(0)
+                broadcast_proc = send(self.env, self.network, self.ps_node, worker, message, data_size=self.data_size)
+                broadcast_processes.append(broadcast_proc)
+                
+        if broadcast_processes:
+            yield self.env.all_of(broadcast_processes)
 
 class BroadcastPSAllReduce(PSAllReduce):
-    """Parameter Server AllReduce using broadcast messages"""
-    def reduce(self, worker_id: int, data_size: int = None):
-        """Perform reduce operation using broadcast messages"""
-        # Use provided data_size or default to self.data_size
-        data_size = data_size if data_size is not None else self.data_size
+    """Parameter Server AllReduce with broadcast capability"""
+    def reduce(self):
+        """Perform Parameter Server AllReduce with broadcast capability"""
+        # Phase 1: Workers send to PS (same as base class)
+        send_processes = []
+        for worker in self.workers:
+            if worker != self.ps_node:
+                message = Message(
+                    source_id=worker,
+                    target_id=self.ps_node,
+                    data=f"reduce_from_{worker}",
+                    msg_type=MessageType.REDUCE,
+                    timestamp=self.env.now
+                )
+                send_proc = send(self.env, self.network, worker, self.ps_node, message, data_size=self.data_size)
+                send_processes.append(send_proc)
         
-        # Phase 1: Workers send values to server
+        if send_processes:
+            yield self.env.all_of(send_processes)
+            
+        # Phase 2: PS broadcasts result using network broadcast capability
         message = Message(
-            source_id=worker_id,
-            target_id=self.server_id,
-            data="reduce",
-            msg_type=MessageType.REDUCE,
+            source_id=self.ps_node,
+            target_id=-1,  # 广播地址
+            data="broadcast_from_ps",
+            msg_type=MessageType.BROADCAST,
             timestamp=self.env.now
         )
-        send(self.env, self.network, worker_id, self.server_id, message, data_size=data_size)
-        yield self.env.timeout(0)  # Simulate computation time
-
-        # Server aggregates values
-        self.received_count += 1
-        
-        # Wait for all workers to send their values
-        if self.received_count == len(self.workers):
-            # Phase 2: Server broadcasts result to all workers using a single broadcast message
-            message = Message(
-                source_id=self.server_id,
-                target_id=-1,  # Broadcast address
-                data="result",
-                msg_type=MessageType.BROADCAST,
-                timestamp=self.env.now
-            )
-            send(self.env, self.network, self.server_id, -1, message, 
-                 data_size=data_size, is_broadcast=True)
-            yield self.env.timeout(0)
+        yield send(self.env, self.network, self.ps_node, -1, message, 
+                  data_size=self.data_size, is_broadcast=True)
