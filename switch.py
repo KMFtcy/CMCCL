@@ -1,6 +1,7 @@
 from ns.switch.switch import SimplePacketSwitch
 from ns.packet.packet import Packet
 from ns.packet.sink import PacketSink
+import copy
 class BroadcastSwitch(SimplePacketSwitch):
     """Custom packet switch that overrides the put method to implement specific forwarding logic."""
 
@@ -16,7 +17,7 @@ class BroadcastSwitch(SimplePacketSwitch):
         if getattr(packet, 'is_broadcast'):  # Check if the packet is a broadcast
             last_hop = packet.last_hop  # Get the last hop from the packet
             
-            # 如果是主机节点且不是源节点，直接转发到sink并结束
+            # host sink
             if self.is_host and int(last_hop) != int(self.node_id):
                 self.forward_to_sink(packet)
                 return
@@ -24,7 +25,7 @@ class BroadcastSwitch(SimplePacketSwitch):
             if int(last_hop) == int(self.node_id):  # for source node, the last hop is itself
                 last_hop_port = self.node_id
             else:
-                # 中心交换机使用 nexthop_to_port 映射
+                # print(f"at node {self.node_id}, last_hop: {last_hop}, nexthop_to_port: {self.nexthop_to_port}")
                 last_hop_port = self.nexthop_to_port[int(last_hop)]
             
             packet.last_hop = self.node_id
@@ -33,7 +34,9 @@ class BroadcastSwitch(SimplePacketSwitch):
             for port_num, port in enumerate(self.ports):
                 # Only forward to connected ports (port.out is not None) and not the last hop port
                 if port_num != int(last_hop_port) and port is not None and port.out is not None:
-                    port.put(packet)  # Forward the packet to the port
+                    # print(f"forwarding packet {packet.packet_id} to port {port_num}")
+                    # Forward the packet to the port, must deepcopy to avoid reference issue. Multiple will edit last hop on the same packet.
+                    port.put(copy.deepcopy(packet)) 
         else:
             # Call the original put method for normal processing
             super().put(packet)
