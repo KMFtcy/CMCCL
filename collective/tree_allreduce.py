@@ -53,13 +53,9 @@ class TreeAllReduce:
     def reduce(self):
         """Perform Tree AllReduce operation"""
         # Phase 1: Reduce (bottom-up)
-        reduce_start = self.env.now
-        level_times = []
-
-        # Start from leaves and work up to root
         for level_idx, level in enumerate(reversed(self.levels[1:])):  # Skip root level
-            level_start = self.env.now
             # All workers in this level send to their parents simultaneously
+            send_processes = []
             for worker in level:
                 parent = self.get_parent(worker)
                 message = Message(
@@ -69,30 +65,14 @@ class TreeAllReduce:
                     msg_type=MessageType.REDUCE,
                     timestamp=self.env.now
                 )
-                send(self.env, self.network, worker, parent, message, data_size=self.data_size)
+                # Store the send process
+                send_proc = send(self.env, self.network, worker, parent, message, data_size=self.data_size)
+                send_processes.append(send_proc)
+            yield self.env.all_of(send_processes)
             
-            # Last worker in level triggers the event
-            self.reduce_events[level_idx].succeed()
-            # Wait for level completion
-            yield self.reduce_events[level_idx]
-            
-            level_end = self.env.now
-            level_time = level_end - level_start
-            level_times.append((f"Reduce Level {len(self.levels)-level_idx-1}", level_time))
-
-        reduce_phase_time = self.env.now - reduce_start
-        print("\nTree AllReduce Reduce Phase Times:")
-        for level_name, time in level_times:
-            print(f"{level_name}: {time}")
-        print(f"Total Reduce Phase Time: {reduce_phase_time}")
-
         # Phase 2: Broadcast (top-down)
-        broadcast_start = self.env.now
-        level_times = []
-
         for level_idx, level in enumerate(self.levels[:-1]):  # Skip leaf level
-            level_start = self.env.now
-            # All workers in this level send to their children simultaneously
+            send_processes = []
             for worker in level:
                 children = self.tree[worker]['children']
                 for child in children:
@@ -103,23 +83,10 @@ class TreeAllReduce:
                         msg_type=MessageType.BROADCAST,
                         timestamp=self.env.now
                     )
-                    send(self.env, self.network, worker, child, message, data_size=self.data_size)
-            
-            # Last worker in level triggers the event
-            self.broadcast_events[level_idx].succeed()
-            # Wait for level completion
-            yield self.broadcast_events[level_idx]
-            
-            level_end = self.env.now
-            level_time = level_end - level_start
-            level_times.append((f"Broadcast Level {level_idx}", level_time))
-
-        broadcast_phase_time = self.env.now - broadcast_start
-        print("\nTree AllReduce Broadcast Phase Times:")
-        for level_name, time in level_times:
-            print(f"{level_name}: {time}")
-        print(f"Total Broadcast Phase Time: {broadcast_phase_time}")
-        print(f"Total AllReduce Time: {broadcast_phase_time + reduce_phase_time}\n")
+                    # Store the send process
+                    send_proc = send(self.env, self.network, worker, child, message, data_size=self.data_size)
+                    send_processes.append(send_proc)
+            yield self.env.all_of(send_processes)
 
 class BinaryTreeAllReduce(TreeAllReduce):
     """Binary Tree AllReduce implementation"""
@@ -140,12 +107,9 @@ class BroadcastTreeAllReduce(TreeAllReduce):
     """Tree AllReduce with broadcast capability"""
     def reduce(self):
         """Perform Tree AllReduce with broadcast capability"""
-        # Phase 1: Reduce (bottom-up) - Same as TreeAllReduce
-        reduce_start = self.env.now
-        level_times = []
-
+        # Phase 1: Reduce (bottom-up)
         for level_idx, level in enumerate(reversed(self.levels[1:])):
-            level_start = self.env.now
+            send_processes = []
             for worker in level:
                 parent = self.get_parent(worker)
                 message = Message(
@@ -155,23 +119,12 @@ class BroadcastTreeAllReduce(TreeAllReduce):
                     msg_type=MessageType.REDUCE,
                     timestamp=self.env.now
                 )
-                send(self.env, self.network, worker, parent, message, data_size=self.data_size)
-            
-            self.reduce_events[level_idx].succeed()
-            yield self.reduce_events[level_idx]
-            
-            level_end = self.env.now
-            level_time = level_end - level_start
-            level_times.append((f"Reduce Level {len(self.levels)-level_idx-1}", level_time))
-
-        reduce_phase_time = self.env.now - reduce_start
-        print("\nBroadcast Tree AllReduce Reduce Phase Times:")
-        for level_name, time in level_times:
-            print(f"{level_name}: {time}")
-        print(f"Total Reduce Phase Time: {reduce_phase_time}")
+                # Store the send process
+                send_proc = send(self.env, self.network, worker, parent, message, data_size=self.data_size)
+                send_processes.append(send_proc)
+            yield self.env.all_of(send_processes)
 
         # Phase 2: Use broadcast capability
-        broadcast_start = self.env.now
         root = self.levels[0][0]
         message = Message(
             source_id=root,
@@ -180,8 +133,6 @@ class BroadcastTreeAllReduce(TreeAllReduce):
             msg_type=MessageType.BROADCAST,
             timestamp=self.env.now
         )
-        send(self.env, self.network, root, -1, message, 
-             data_size=self.data_size, is_broadcast=True)
-        broadcast_phase_time = self.env.now - broadcast_start
-        print(f"Broadcast Phase Time: {broadcast_phase_time}")
-        print(f"Total AllReduce Time: {broadcast_phase_time + reduce_phase_time}\n")
+        # Just send the broadcast message without waiting
+        yield self.env.all_of([send(self.env, self.network, root, -1, message, 
+             data_size=self.data_size, is_broadcast=True)])
