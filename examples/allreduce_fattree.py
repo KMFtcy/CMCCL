@@ -124,7 +124,7 @@ plt.tight_layout()
 os.makedirs('logs', exist_ok=True)
 
 # Save the plot
-plt.savefig('logs/all_allreduce_fattree.png', dpi=300, bbox_inches='tight')
+plt.savefig('logs/all_allreduce_on_fattree_comparison.png', dpi=300, bbox_inches='tight')
 plt.close()
 
-print("\nResults have been saved to logs/all_allreduce_fattree.png") 
+print("\nResults have been saved to logs/all_allreduce_on_fattree_comparison.png") 

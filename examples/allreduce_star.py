@@ -80,7 +80,7 @@ plt.minorticks_on()
 os.makedirs('logs', exist_ok=True)
 
 # Save the plot
-plt.savefig('logs/all_allreduce_comparison.png', dpi=300, bbox_inches='tight')
+plt.savefig('logs/all_allreduce_on_star_comparison.png', dpi=300, bbox_inches='tight')
 plt.close()
 
-print("Results have been saved to logs/all_allreduce_comparison.png")
+print("Results have been saved to logs/all_allreduce_on_star_comparison.png")
