@@ -27,40 +27,50 @@ def create_fattree_network_with_broadcast(k: int, env: simpy.Environment, debug:
     n_hosts = k**3//4
     
     # Add core switches (top layer)
+    core_start = 0
     for i in range(n_core):
-        G.add_node(f"c{i}", type="switch", layer="core")
+        G.add_node(i, type="switch", layer="core")
     
     # Add aggregation switches (middle layer)
+    aggr_start = n_core
     for pod in range(k):
         for i in range(k//2):
-            G.add_node(f"a{pod}_{i}", type="switch", layer="aggr")
+            node_id = aggr_start + pod * (k//2) + i
+            G.add_node(node_id, type="switch", layer="aggr")
     
     # Add edge switches (bottom layer)
+    edge_start = aggr_start + n_aggr
     for pod in range(k):
         for i in range(k//2):
-            G.add_node(f"e{pod}_{i}", type="switch", layer="edge")
+            node_id = edge_start + pod * (k//2) + i
+            G.add_node(node_id, type="switch", layer="edge")
     
     # Add hosts
+    host_start = edge_start + n_edge
     for pod in range(k):
         for switch in range(k//2):
             for host in range(k//2):
-                host_id = pod * (k**2//4) + switch * (k//2) + host
-                G.add_node(f"h{host_id}", type="host", layer="host")
+                host_id = host_start + pod * (k**2//4) + switch * (k//2) + host
+                G.add_node(host_id, type="host", layer="host")
                 # Connect host to edge switch
-                G.add_edge(f"h{host_id}", f"e{pod}_{switch}")
+                edge_id = edge_start + pod * (k//2) + switch
+                G.add_edge(host_id, edge_id)
     
     # Connect edge switches to aggregation switches
     for pod in range(k):
         for edge in range(k//2):
+            edge_id = edge_start + pod * (k//2) + edge
             for aggr in range(k//2):
-                G.add_edge(f"e{pod}_{edge}", f"a{pod}_{aggr}")
+                aggr_id = aggr_start + pod * (k//2) + aggr
+                G.add_edge(edge_id, aggr_id)
     
     # Connect aggregation switches to core switches
     for pod in range(k):
         for aggr in range(k//2):
+            aggr_id = aggr_start + pod * (k//2) + aggr
             for j in range(k//2):
-                core_index = aggr * (k//2) + j
-                G.add_edge(f"a{pod}_{aggr}", f"c{core_index}")
+                core_id = aggr * (k//2) + j
+                G.add_edge(aggr_id, core_id)
     
     # Get all hosts
     hosts = {n for n in G.nodes() if G.nodes[n]["type"] == "host"}
@@ -77,7 +87,7 @@ def create_fattree_network_with_broadcast(k: int, env: simpy.Environment, debug:
         
         # Create the BroadcastSwitch
         device = BroadcastSwitch(
-            env, nports=n_ports, port_rate=1e8, buffer_size=None, node_id=str(node_id)
+            env, nports=n_ports, port_rate=1e9, buffer_size=None, node_id=str(node_id), debug=debug
         )
         device.is_host = (node["type"] == "host")
         device.nexthop_to_port = node["nexthop_to_port"]
