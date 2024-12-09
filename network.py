@@ -74,6 +74,7 @@ def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, me
     packet.is_broadcast = is_broadcast
     if is_broadcast:
         packet.last_hop = src_id
+        packet.history_hop = [src_id]
 
     # Increment the send packet num
     network.nodes[src_id]["send_packet_num"] += 1
