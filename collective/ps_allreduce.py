@@ -34,7 +34,7 @@ class UnicastPSAllReduce(PSAllReduce):
             timestamp=self.env.now
         )
         send(self.env, self.network, worker_id, self.server_id, message, data_size=data_size)
-        yield self.env.timeout(1)  # Simulate computation time
+        yield self.env.timeout(0)  # Simulate computation time
 
         # Server aggregates values
         self.received_count += 1
@@ -51,7 +51,7 @@ class UnicastPSAllReduce(PSAllReduce):
                     timestamp=self.env.now
                 )
                 send(self.env, self.network, self.server_id, w_id, message, data_size=data_size)
-                yield self.env.timeout(1)
+                yield self.env.timeout(0)
 
 class BroadcastPSAllReduce(PSAllReduce):
     """Parameter Server AllReduce using broadcast messages"""
@@ -69,7 +69,7 @@ class BroadcastPSAllReduce(PSAllReduce):
             timestamp=self.env.now
         )
         send(self.env, self.network, worker_id, self.server_id, message, data_size=data_size)
-        yield self.env.timeout(1)  # Simulate computation time
+        yield self.env.timeout(0)  # Simulate computation time
 
         # Server aggregates values
         self.received_count += 1
@@ -86,4 +86,4 @@ class BroadcastPSAllReduce(PSAllReduce):
             )
             send(self.env, self.network, self.server_id, -1, message, 
                  data_size=data_size, is_broadcast=True)
-            yield self.env.timeout(1)
+            yield self.env.timeout(0)

@@ -77,7 +77,7 @@ def create_fattree_network_with_broadcast(k: int, env: simpy.Environment):
         
         # Create the BroadcastSwitch
         device = BroadcastSwitch(
-            env, nports=n_ports, port_rate=1e9, buffer_size=None, node_id=str(node_id)
+            env, nports=n_ports, port_rate=1e8, buffer_size=None, node_id=str(node_id)
         )
         device.is_host = (node["type"] == "host")
         device.nexthop_to_port = node["nexthop_to_port"]

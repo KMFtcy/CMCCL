@@ -49,17 +49,9 @@ def get_flow_by_src_dst(all_flows: Dict[int, Flow], src: int, dst: int) -> Optio
             return flow_id, flow
     return None
 
-def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, message: Message, data_size: int=1.5e9, is_broadcast: bool=False, latency: float=1):
-    """Send a message from source to destination.
-
-    Args:
-        env: SimPy environment
-        src_id: Source node ID
-        dst_id: Destination node ID
-        message: The message to be sent
-        network: The entire network topology containing all flows
-    """
-    all_flows = network.all_flows  # Extract all_flows from the network topology
+def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, message: Message, data_size: int=1.5e9, is_broadcast: bool=False, latency: float=10):
+    """Send a message from source to destination."""
+    all_flows = network.all_flows
     flow_info = get_flow_by_src_dst(all_flows, src_id, dst_id)
     if flow_info is None:
         print(f"No flow found from {src_id} to {dst_id}.")
@@ -70,8 +62,8 @@ def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, me
     # Create a packet
     packet = Packet(
         env.now,
-        size=data_size,  # Assuming message has a size attribute
-        packet_id=network.nodes[src_id]["send_packet_num"],  # Assuming message has an id attribute
+        size=data_size,
+        packet_id=network.nodes[src_id]["send_packet_num"],
         src=src_id,
         dst=dst_id,
         flow_id=flow_id,
@@ -81,14 +73,14 @@ def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, me
     if is_broadcast:
         packet.last_hop = src_id
 
-    # Activate SimPy process to send the packet
-    env.process(_send_packet(env, packet, network.nodes[src_id]["device"], latency))
-
     # Increment the send packet num
     network.nodes[src_id]["send_packet_num"] += 1
 
-def _send_packet(env: simpy.Environment, packet: Packet, device, latency: float=0.5):
+    # Return the process so caller can wait for it
+    return env.process(_send_packet(env, packet, network.nodes[src_id]["device"], latency))
+
+def _send_packet(env: simpy.Environment, packet: Packet, device, latency: float=10):
     """Internal method to handle sending the packet."""
     yield env.timeout(latency)  # latency for every message
-    device.put(packet)  # Assuming the device has an in_ports attribute
-    print(f"Packet {packet.packet_id} sent from {packet.src} to {packet.dst}.")
+    device.put(packet)
+    # print(f"Packet {packet.packet_id} sent from {packet.src} to {packet.dst}.")

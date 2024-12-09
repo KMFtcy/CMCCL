@@ -6,6 +6,7 @@ class BroadcastSwitch(SimplePacketSwitch):
 
     def __init__(self, env, nports: int, port_rate: float, buffer_size: int, node_id=None, nexthop_to_port=None, debug: bool = False):
         super().__init__(env, nports, port_rate, buffer_size, element_id=node_id, debug=debug)
+        self.debug = debug
         self.node_id = node_id
         self.nexthop_to_port = nexthop_to_port if nexthop_to_port is not None else {}
 
@@ -42,6 +43,6 @@ class BroadcastSwitch(SimplePacketSwitch):
 
     def forward_to_sink(self, packet: Packet):
         """Forward the packet to a special sink."""
-        ps = PacketSink(self.env, debug=True)
+        ps = PacketSink(self.env, self.debug)
         ps.put(packet)
         # print(f"Forwarding packet {packet.packet_id} to sink from {self.node_id}.")
