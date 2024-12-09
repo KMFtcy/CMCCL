@@ -92,7 +92,7 @@ def create_fattree_network_with_broadcast(k: int, env: simpy.Environment):
 
     # Connect flow destinations to sinks
     for flow_id, flow in all_flows.items():
-        G.nodes[flow.dst]["device"].demux.ends[flow_id] = PacketSink(env, debug=True)
+        G.nodes[flow.dst]["device"].demux.ends[flow_id] = PacketSink(env)
 
     # Record send packet num in node attributes
     for node_id in G.nodes():
