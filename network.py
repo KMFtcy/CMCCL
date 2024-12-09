@@ -36,7 +36,7 @@ def generate_all_flows(
         )
         
         # all_flows[flow_id].path = list(nx.all_shortest_paths(G, src, dst))[0]
-        print(f"nodes count is {G.number_of_nodes()}, finding path from {src} to {dst}")
+        # print(f"nodes count is {G.number_of_nodes()}, finding path from {src} to {dst}")
         all_flows[flow_id].path = nx.shortest_path(G, src, dst)
         flow_id += 1
         
@@ -49,7 +49,7 @@ def get_flow_by_src_dst(all_flows: Dict[int, Flow], src: int, dst: int) -> Optio
             return flow_id, flow
     return None
 
-def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, message: Message, data_size: int=1.5e9, is_broadcast: bool=False):
+def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, message: Message, data_size: int=1.5e9, is_broadcast: bool=False, latency: float=1):
     """Send a message from source to destination.
 
     Args:
@@ -82,13 +82,13 @@ def send(env: simpy.Environment, network: nx.Graph, src_id: int, dst_id: int, me
         packet.last_hop = src_id
 
     # Activate SimPy process to send the packet
-    env.process(_send_packet(env, packet, network.nodes[src_id]["device"]))
+    env.process(_send_packet(env, packet, network.nodes[src_id]["device"], latency))
 
     # Increment the send packet num
     network.nodes[src_id]["send_packet_num"] += 1
 
-def _send_packet(env: simpy.Environment, packet: Packet, device):
+def _send_packet(env: simpy.Environment, packet: Packet, device, latency: float=0.5):
     """Internal method to handle sending the packet."""
-    yield env.timeout(0)  # Simulate some processing time
+    yield env.timeout(latency)  # latency for every message
     device.put(packet)  # Assuming the device has an in_ports attribute
     print(f"Packet {packet.packet_id} sent from {packet.src} to {packet.dst}.")
