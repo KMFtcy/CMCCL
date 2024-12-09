@@ -9,6 +9,7 @@ class BroadcastSwitch(SimplePacketSwitch):
         self.debug = debug
         self.node_id = node_id
         self.nexthop_to_port = nexthop_to_port if nexthop_to_port is not None else {}
+        self.is_host = False  # 添加 is_host 属性
 
     def put(self, packet: Packet):
         """Sends a packet to this element with custom forwarding logic."""
@@ -36,10 +37,6 @@ class BroadcastSwitch(SimplePacketSwitch):
         else:
             # Call the original put method for normal processing
             super().put(packet)
-
-    def is_host(self):
-        """Check if this switch is a host."""
-        return hasattr(self, 'is_host') and self.is_host
 
     def forward_to_sink(self, packet: Packet):
         """Forward the packet to a special sink."""
