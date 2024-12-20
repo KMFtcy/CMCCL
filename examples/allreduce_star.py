@@ -10,12 +10,14 @@ import simpy
 import matplotlib.pyplot as plt
 import os
 from collective.logger import set_log_file
+from datetime import datetime
 
 def run_test(num_nodes, algorithm):
     """Run test for specified algorithm and number of nodes"""
-    # Set log file based on topology name and size
+    # Set log file based on topology name, size and current time
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     num_hosts = num_nodes - 1  # subtract 1 for the switch
-    log_file = f"logs/star_{num_hosts}.log"
+    log_file = f"logs/star_{num_hosts}_{timestamp}.log"
     set_log_file(log_file)
     
     env = simpy.Environment()

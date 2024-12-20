@@ -12,12 +12,14 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 import networkx as nx
+from datetime import datetime
 
 def run_test(k, algorithm):
     """Run AllReduce test on k-ary FatTree"""
-    # Set log file based on topology name and size
+    # Set log file based on topology name, size and current time
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     num_hosts = (k ** 3) // 4  # number of hosts in fat-tree
-    log_file = f"logs/fattree_{num_hosts}.log"
+    log_file = f"logs/fattree_{num_hosts}_{timestamp}.log"
     set_log_file(log_file)
     
     env = simpy.Environment()
