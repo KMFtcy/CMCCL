@@ -84,6 +84,8 @@ class TreeAllReduce:
                 "algorithm": "tree_allreduce",
                 "phase": "reduce",
                 "step": level_idx,
+                "yield_start_time": yield_start_time,
+                "yield_end_time": yield_end_time,
                 "yield_time_spent": yield_end_time - yield_start_time
             }))
             
@@ -115,6 +117,8 @@ class TreeAllReduce:
                 "algorithm": "tree_allreduce",
                 "phase": "broadcast",
                 "step": level_idx,
+                "yield_start_time": yield_start_time,
+                "yield_end_time": yield_end_time,
                 "yield_time_spent": yield_end_time - yield_start_time
             }))
 

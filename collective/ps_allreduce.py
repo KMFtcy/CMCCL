@@ -47,6 +47,8 @@ class PSAllReduce:
                 "algorithm": "ps_allreduce",
                 "phase": "reduce",
                 "step": 0,
+                "yield_start_time": yield_start_time,
+                "yield_end_time": yield_end_time,
                 "yield_time_spent": yield_end_time - yield_start_time
             }))
             
@@ -76,6 +78,8 @@ class PSAllReduce:
                 "algorithm": "ps_allreduce",
                 "phase": "broadcast",
                 "step": 0,
+                "yield_start_time": yield_start_time,
+                "yield_end_time": yield_end_time,
                 "yield_time_spent": yield_end_time - yield_start_time
             }))
 
@@ -109,6 +113,8 @@ class BroadcastPSAllReduce(PSAllReduce):
                 "algorithm": "ps_allreduce_broadcast",
                 "phase": "reduce",
                 "step": 0,
+                "yield_start_time": yield_start_time,
+                "yield_end_time": yield_end_time,
                 "yield_time_spent": yield_end_time - yield_start_time
             }))
             
@@ -132,5 +138,7 @@ class BroadcastPSAllReduce(PSAllReduce):
             "algorithm": "ps_allreduce_broadcast",
             "phase": "broadcast",
             "step": 0,
+            "yield_start_time": yield_start_time,
+            "yield_end_time": yield_end_time,
             "yield_time_spent": yield_end_time - yield_start_time
         }))

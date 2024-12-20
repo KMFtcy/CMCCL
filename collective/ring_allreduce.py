@@ -61,6 +61,8 @@ class RingAllReduce:
                 "algorithm": "ring_allreduce",
                 "phase": "scatter-reduce",
                 "step": step,
+                "yield_start_time": yield_start_time,
+                "yield_end_time": yield_end_time,
                 "yield_time_spent": yield_end_time - yield_start_time
             }))
 
@@ -92,6 +94,8 @@ class RingAllReduce:
                 "algorithm": "ring_allreduce",
                 "phase": "allgather",
                 "step": step,
+                "yield_start_time": yield_start_time,
+                "yield_end_time": yield_end_time,
                 "yield_time_spent": yield_end_time - yield_start_time
             }))
 
