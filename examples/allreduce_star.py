@@ -19,7 +19,7 @@ def run_test(num_nodes, algorithm):
     set_log_file(log_file)
     
     env = simpy.Environment()
-    network = build(env=env, num_nodes=num_nodes)
+    network = build(env=env, num_nodes=num_nodes, debug=True)
     hosts = sorted([n for n in network.nodes() if network.nodes[n]["type"] == "host"])
     
     if algorithm == "ring":

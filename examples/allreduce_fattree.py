@@ -21,7 +21,7 @@ def run_test(k, algorithm):
     set_log_file(log_file)
     
     env = simpy.Environment()
-    network = build(env=env, k=k)
+    network = build(env=env, k=k, debug=True)
     hosts = sorted([n for n in network.nodes() if network.nodes[n]["type"] == "host"])
     
     # 打印FatTree拓扑信息
