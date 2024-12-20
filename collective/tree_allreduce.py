@@ -58,7 +58,14 @@ class TreeAllReduce:
         """Perform Tree AllReduce operation"""
         # Phase 1: Reduce (bottom-up)
         for level_idx, level in enumerate(reversed(self.levels[1:])):  # Skip root level
-            # All workers in this level send to their parents simultaneously
+            step_start_time = time.perf_counter()
+            logger.info(json.dumps({
+                "algorithm": "tree_allreduce",
+                "phase": "reduce",
+                "step": level_idx,
+                "step_start_time": step_start_time
+            }))
+
             send_processes = []
             for worker in level:
                 parent = self.get_parent(worker)
@@ -69,28 +76,21 @@ class TreeAllReduce:
                     msg_type=MessageType.REDUCE,
                     timestamp=self.env.now
                 )
-                # Store the send process
                 send_proc = send(self.env, self.network, worker, parent, message, data_size=self.data_size)
                 send_processes.append(send_proc)
 
-            # Record start time before yield
-            yield_start_time = time.time()
             yield self.env.all_of(send_processes)
-            # Record end time after yield
-            yield_end_time = time.time()
-
-            # Write structured log entry directly to file
-            logger.info(json.dumps({
-                "algorithm": "tree_allreduce",
-                "phase": "reduce",
-                "step": level_idx,
-                "yield_start_time": yield_start_time,
-                "yield_end_time": yield_end_time,
-                "yield_time_spent": yield_end_time - yield_start_time
-            }))
             
         # Phase 2: Broadcast (top-down)
         for level_idx, level in enumerate(self.levels[:-1]):  # Skip leaf level
+            step_start_time = time.perf_counter()
+            logger.info(json.dumps({
+                "algorithm": "tree_allreduce",
+                "phase": "broadcast",
+                "step": level_idx,
+                "step_start_time": step_start_time
+            }))
+
             send_processes = []
             for worker in level:
                 children = self.tree[worker]['children']
@@ -102,25 +102,10 @@ class TreeAllReduce:
                         msg_type=MessageType.BROADCAST,
                         timestamp=self.env.now
                     )
-                    # Store the send process
                     send_proc = send(self.env, self.network, worker, child, message, data_size=self.data_size)
                     send_processes.append(send_proc)
 
-            # Record start time before yield
-            yield_start_time = time.time()
             yield self.env.all_of(send_processes)
-            # Record end time after yield
-            yield_end_time = time.time()
-
-            # Write structured log entry directly to file
-            logger.info(json.dumps({
-                "algorithm": "tree_allreduce",
-                "phase": "broadcast",
-                "step": level_idx,
-                "yield_start_time": yield_start_time,
-                "yield_end_time": yield_end_time,
-                "yield_time_spent": yield_end_time - yield_start_time
-            }))
 
 class BinaryTreeAllReduce(TreeAllReduce):
     """Binary Tree AllReduce implementation"""

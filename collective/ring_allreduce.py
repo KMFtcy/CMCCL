@@ -35,7 +35,14 @@ class RingAllReduce:
         """Perform Ring AllReduce operation"""
         # Phase 1: Scatter-reduce
         for step in range(self.n_workers - 1):
-            step_start = self.env.now
+            step_start_time = time.perf_counter()
+            logger.info(json.dumps({
+                "algorithm": "ring_allreduce",
+                "phase": "scatter-reduce",
+                "step": step,
+                "step_start_time": step_start_time
+            }))
+
             # Each worker sends to its next neighbor
             send_processes = []
             for worker_id in self.workers:
@@ -47,29 +54,21 @@ class RingAllReduce:
                     msg_type=MessageType.REDUCE,
                     timestamp=self.env.now
                 )
-                
-                # Store the send process
                 send_proc = send(self.env, self.network, worker_id, send_dst, message, data_size=self.chunk_size)
                 send_processes.append(send_proc)
 
-            # Record and log time
-            yield_start_time = time.time()
             yield self.env.all_of(send_processes)
-            yield_end_time = time.time()
-            
-            logger.info(json.dumps({
-                "algorithm": "ring_allreduce",
-                "phase": "scatter-reduce",
-                "step": step,
-                "yield_start_time": yield_start_time,
-                "yield_end_time": yield_end_time,
-                "yield_time_spent": yield_end_time - yield_start_time
-            }))
 
         # Phase 2: Allgather
         for step in range(self.n_workers - 1):
-            step_start = self.env.now
-            # Each worker sends to its next neighbor
+            step_start_time = time.perf_counter()
+            logger.info(json.dumps({
+                "algorithm": "ring_allreduce",
+                "phase": "allgather",
+                "step": step,
+                "step_start_time": step_start_time
+            }))
+
             send_processes = []
             for worker_id in self.workers:
                 send_dst = self.get_next_rank(worker_id)
@@ -80,24 +79,10 @@ class RingAllReduce:
                     msg_type=MessageType.BROADCAST,
                     timestamp=self.env.now
                 )
-                
-                # Store the send process
                 send_proc = send(self.env, self.network, worker_id, send_dst, message, data_size=self.chunk_size)
                 send_processes.append(send_proc)
 
-            # Record and log time
-            yield_start_time = time.time()
             yield self.env.all_of(send_processes)
-            yield_end_time = time.time()
-            
-            logger.info(json.dumps({
-                "algorithm": "ring_allreduce",
-                "phase": "allgather",
-                "step": step,
-                "yield_start_time": yield_start_time,
-                "yield_end_time": yield_end_time,
-                "yield_time_spent": yield_end_time - yield_start_time
-            }))
 
 
 class HierarchicalRingAllReduce(RingAllReduce):

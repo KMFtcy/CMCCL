@@ -21,9 +21,17 @@ class PSAllReduce:
     def reduce(self):
         """Perform Parameter Server AllReduce operation"""
         # Phase 1: Workers send to PS
+        step_start_time = time.perf_counter()
+        logger.info(json.dumps({
+            "algorithm": "ps_allreduce",
+            "phase": "reduce",
+            "step": 0,
+            "step_start_time": step_start_time
+        }))
+
         send_processes = []
         for worker in self.workers:
-            if worker != self.ps_node:  # PS节点不需要发送给自己
+            if worker != self.ps_node:
                 message = Message(
                     source_id=worker,
                     target_id=self.ps_node,
@@ -34,28 +42,21 @@ class PSAllReduce:
                 send_proc = send(self.env, self.network, worker, self.ps_node, message, data_size=self.data_size)
                 send_processes.append(send_proc)
         
-        # 等待所有worker发送完成
         if send_processes:
-            # Record start time before yield
-            yield_start_time = time.time()
             yield self.env.all_of(send_processes)
-            # Record end time after yield
-            yield_end_time = time.time()
-
-            # Log time data
-            logger.info(json.dumps({
-                "algorithm": "ps_allreduce",
-                "phase": "reduce",
-                "step": 0,
-                "yield_start_time": yield_start_time,
-                "yield_end_time": yield_end_time,
-                "yield_time_spent": yield_end_time - yield_start_time
-            }))
             
-        # Phase 2: PS broadcasts result to all workers
+        # Phase 2: PS broadcasts result
+        step_start_time = time.perf_counter()
+        logger.info(json.dumps({
+            "algorithm": "ps_allreduce",
+            "phase": "broadcast",
+            "step": 0,
+            "step_start_time": step_start_time
+        }))
+
         broadcast_processes = []
         for worker in self.workers:
-            if worker != self.ps_node:  # PS节点不需要发送给自己
+            if worker != self.ps_node:
                 message = Message(
                     source_id=self.ps_node,
                     target_id=worker,
@@ -67,21 +68,7 @@ class PSAllReduce:
                 broadcast_processes.append(broadcast_proc)
                 
         if broadcast_processes:
-            # Record start time before yield
-            yield_start_time = time.time()
             yield self.env.all_of(broadcast_processes)
-            # Record end time after yield
-            yield_end_time = time.time()
-
-            # Log time data
-            logger.info(json.dumps({
-                "algorithm": "ps_allreduce",
-                "phase": "broadcast",
-                "step": 0,
-                "yield_start_time": yield_start_time,
-                "yield_end_time": yield_end_time,
-                "yield_time_spent": yield_end_time - yield_start_time
-            }))
 
 class BroadcastPSAllReduce(PSAllReduce):
     """Parameter Server AllReduce with broadcast capability"""
@@ -103,10 +90,10 @@ class BroadcastPSAllReduce(PSAllReduce):
         
         if send_processes:
             # Record start time before yield
-            yield_start_time = time.time()
+            yield_start_time = time.perf_counter()
             yield self.env.all_of(send_processes)
             # Record end time after yield
-            yield_end_time = time.time()
+            yield_end_time = time.perf_counter()
 
             # Log time data
             logger.info(json.dumps({
@@ -127,11 +114,11 @@ class BroadcastPSAllReduce(PSAllReduce):
             timestamp=self.env.now
         )
         # Record start time before yield
-        yield_start_time = time.time()
+        yield_start_time = time.perf_counter()
         yield send(self.env, self.network, self.ps_node, -1, message, 
                   data_size=self.data_size, is_broadcast=True)
         # Record end time after yield
-        yield_end_time = time.time()
+        yield_end_time = time.perf_counter()
 
         # Log time data
         logger.info(json.dumps({
