@@ -3,6 +3,10 @@ from message import Message, MessageType
 from network import send
 import networkx as nx
 from typing import List
+import time
+import logging
+import json
+from .logger import logger
 
 class PSAllReduce:
     """Parameter Server AllReduce implementation"""
@@ -32,7 +36,19 @@ class PSAllReduce:
         
         # 等待所有worker发送完成
         if send_processes:
+            # Record start time before yield
+            yield_start_time = time.time()
             yield self.env.all_of(send_processes)
+            # Record end time after yield
+            yield_end_time = time.time()
+
+            # Log time data
+            logger.info(json.dumps({
+                "algorithm": "ps_allreduce",
+                "phase": "reduce",
+                "step": 0,
+                "yield_time_spent": yield_end_time - yield_start_time
+            }))
             
         # Phase 2: PS broadcasts result to all workers
         broadcast_processes = []
@@ -49,7 +65,19 @@ class PSAllReduce:
                 broadcast_processes.append(broadcast_proc)
                 
         if broadcast_processes:
+            # Record start time before yield
+            yield_start_time = time.time()
             yield self.env.all_of(broadcast_processes)
+            # Record end time after yield
+            yield_end_time = time.time()
+
+            # Log time data
+            logger.info(json.dumps({
+                "algorithm": "ps_allreduce",
+                "phase": "broadcast",
+                "step": 0,
+                "yield_time_spent": yield_end_time - yield_start_time
+            }))
 
 class BroadcastPSAllReduce(PSAllReduce):
     """Parameter Server AllReduce with broadcast capability"""
@@ -70,7 +98,19 @@ class BroadcastPSAllReduce(PSAllReduce):
                 send_processes.append(send_proc)
         
         if send_processes:
+            # Record start time before yield
+            yield_start_time = time.time()
             yield self.env.all_of(send_processes)
+            # Record end time after yield
+            yield_end_time = time.time()
+
+            # Log time data
+            logger.info(json.dumps({
+                "algorithm": "ps_allreduce_broadcast",
+                "phase": "reduce",
+                "step": 0,
+                "yield_time_spent": yield_end_time - yield_start_time
+            }))
             
         # Phase 2: PS broadcasts result using network broadcast capability
         message = Message(
@@ -80,5 +120,17 @@ class BroadcastPSAllReduce(PSAllReduce):
             msg_type=MessageType.BROADCAST,
             timestamp=self.env.now
         )
+        # Record start time before yield
+        yield_start_time = time.time()
         yield send(self.env, self.network, self.ps_node, -1, message, 
                   data_size=self.data_size, is_broadcast=True)
+        # Record end time after yield
+        yield_end_time = time.time()
+
+        # Log time data
+        logger.info(json.dumps({
+            "algorithm": "ps_allreduce_broadcast",
+            "phase": "broadcast",
+            "step": 0,
+            "yield_time_spent": yield_end_time - yield_start_time
+        }))

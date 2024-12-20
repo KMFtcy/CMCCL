@@ -3,6 +3,10 @@ from message import Message, MessageType
 from network import send
 import networkx as nx
 from typing import List, Dict
+import time
+import logging
+import json
+from .logger import logger
 
 class RingAllReduce:
     """Ring AllReduce implementation"""
@@ -43,11 +47,22 @@ class RingAllReduce:
                     msg_type=MessageType.REDUCE,
                     timestamp=self.env.now
                 )
+                
                 # Store the send process
                 send_proc = send(self.env, self.network, worker_id, send_dst, message, data_size=self.chunk_size)
                 send_processes.append(send_proc)
 
+            # Record and log time
+            yield_start_time = time.time()
             yield self.env.all_of(send_processes)
+            yield_end_time = time.time()
+            
+            logger.info(json.dumps({
+                "algorithm": "ring_allreduce",
+                "phase": "scatter-reduce",
+                "step": step,
+                "yield_time_spent": yield_end_time - yield_start_time
+            }))
 
         # Phase 2: Allgather
         for step in range(self.n_workers - 1):
@@ -63,11 +78,22 @@ class RingAllReduce:
                     msg_type=MessageType.BROADCAST,
                     timestamp=self.env.now
                 )
+                
                 # Store the send process
                 send_proc = send(self.env, self.network, worker_id, send_dst, message, data_size=self.chunk_size)
                 send_processes.append(send_proc)
 
+            # Record and log time
+            yield_start_time = time.time()
             yield self.env.all_of(send_processes)
+            yield_end_time = time.time()
+            
+            logger.info(json.dumps({
+                "algorithm": "ring_allreduce",
+                "phase": "allgather",
+                "step": step,
+                "yield_time_spent": yield_end_time - yield_start_time
+            }))
 
 
 class HierarchicalRingAllReduce(RingAllReduce):

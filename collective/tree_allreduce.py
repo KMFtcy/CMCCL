@@ -3,6 +3,10 @@ from message import Message, MessageType
 from network import send
 import networkx as nx
 from typing import List, Dict, Optional
+import time
+import logging
+import json
+from .logger import logger
 
 class TreeAllReduce:
     """Tree AllReduce implementation"""
@@ -68,7 +72,20 @@ class TreeAllReduce:
                 # Store the send process
                 send_proc = send(self.env, self.network, worker, parent, message, data_size=self.data_size)
                 send_processes.append(send_proc)
+
+            # Record start time before yield
+            yield_start_time = time.time()
             yield self.env.all_of(send_processes)
+            # Record end time after yield
+            yield_end_time = time.time()
+
+            # Write structured log entry directly to file
+            logger.info(json.dumps({
+                "algorithm": "tree_allreduce",
+                "phase": "reduce",
+                "step": level_idx,
+                "yield_time_spent": yield_end_time - yield_start_time
+            }))
             
         # Phase 2: Broadcast (top-down)
         for level_idx, level in enumerate(self.levels[:-1]):  # Skip leaf level
@@ -86,7 +103,20 @@ class TreeAllReduce:
                     # Store the send process
                     send_proc = send(self.env, self.network, worker, child, message, data_size=self.data_size)
                     send_processes.append(send_proc)
+
+            # Record start time before yield
+            yield_start_time = time.time()
             yield self.env.all_of(send_processes)
+            # Record end time after yield
+            yield_end_time = time.time()
+
+            # Write structured log entry directly to file
+            logger.info(json.dumps({
+                "algorithm": "tree_allreduce",
+                "phase": "broadcast",
+                "step": level_idx,
+                "yield_time_spent": yield_end_time - yield_start_time
+            }))
 
 class BinaryTreeAllReduce(TreeAllReduce):
     """Binary Tree AllReduce implementation"""
