@@ -37,7 +37,9 @@ def run_test(num_nodes, algorithm):
     return total_time
 
 # Test configurations
-node_counts = [5, 9, 17, 33, 65, 129, 257]  # Including central switch
+node_counts = []
+for i in range(2, 11):
+    node_counts.append(2 ** i + 1)
 algorithms = ["ring", "binary_tree", "broadcast_tree", "ps", "broadcast_ps"]
 styles = {
     "ring": {"color": "blue", "marker": "o", "label": "Ring AllReduce"},
