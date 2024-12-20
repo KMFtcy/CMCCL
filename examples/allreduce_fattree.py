@@ -6,6 +6,7 @@ from topos.fattree_with_broadcast import create_fattree_network_with_broadcast a
 from collective.ring_allreduce import RingAllReduce
 from collective.tree_allreduce import BinaryTreeAllReduce, BroadcastTreeAllReduce
 from collective.ps_allreduce import PSAllReduce, BroadcastPSAllReduce
+from collective.logger import set_log_file
 import simpy
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -14,6 +15,11 @@ import networkx as nx
 
 def run_test(k, algorithm):
     """Run AllReduce test on k-ary FatTree"""
+    # Set log file based on topology name and size
+    num_hosts = (k ** 3) // 4  # number of hosts in fat-tree
+    log_file = f"logs/fattree_{num_hosts}.log"
+    set_log_file(log_file)
+    
     env = simpy.Environment()
     network = build(env=env, k=k)
     hosts = sorted([n for n in network.nodes() if network.nodes[n]["type"] == "host"])

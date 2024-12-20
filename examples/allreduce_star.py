@@ -9,9 +9,15 @@ from collective.ps_allreduce import PSAllReduce, BroadcastPSAllReduce
 import simpy
 import matplotlib.pyplot as plt
 import os
+from collective.logger import set_log_file
 
 def run_test(num_nodes, algorithm):
     """Run test for specified algorithm and number of nodes"""
+    # Set log file based on topology name and size
+    num_hosts = num_nodes - 1  # subtract 1 for the switch
+    log_file = f"logs/star_{num_hosts}.log"
+    set_log_file(log_file)
+    
     env = simpy.Environment()
     network = build(env=env, num_nodes=num_nodes)
     hosts = sorted([n for n in network.nodes() if network.nodes[n]["type"] == "host"])
