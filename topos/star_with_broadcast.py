@@ -5,7 +5,7 @@ from ns.topos.utils import generate_fib
 import networkx as nx
 import simpy
 
-def create_star_network_with_broadcast(num_nodes: int, env: simpy.Environment):
+def create_star_network_with_broadcast(num_nodes: int, env: simpy.Environment, debug: bool=False):
     """Create a star network with one broadcast switch in the center
     
     Args:
@@ -51,7 +51,7 @@ def create_star_network_with_broadcast(num_nodes: int, env: simpy.Environment):
 
     # Connect all flow destinations to a sink for statistics
     for flow_id, flow in all_flows.items():
-        G.nodes[flow.dst]["device"].demux.ends[flow_id] = PacketSink(env, debug=True)
+        G.nodes[flow.dst]["device"].demux.ends[flow_id] = PacketSink(env, debug=debug)
 
     # Record send packet num in node attributes
     for node_id in G.nodes():
